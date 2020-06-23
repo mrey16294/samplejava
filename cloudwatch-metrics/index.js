@@ -21,9 +21,15 @@ const getQueries = async () => {
 }
 
 const getMetricData = async () => {
+  let start = new Date()
+  start.setMonth(start.getMonth() - 1); //prev.setMinutes(prev.getMinutes() - 5);
+  start = new Date(start).getTime() / 1000;
+
+  let end = new Date().getTime() / 1000;
+  
   var params = {
-    StartTime: (new Date('01 June 2020 05:25 UTC')).toISOString(),
-    EndTime: (new Date('04 June 2020 11:40 UTC')).toISOString(),
+    StartTime: start, 
+    EndTime: end,
     MetricDataQueries: await getQueries(),
     ScanBy: 'TimestampAscending'
   };
@@ -34,26 +40,30 @@ const getMetricData = async () => {
 }
 
 const transform = async (metrics) => {
-  let response = [];
-  for (let m = 0; m < metrics.length; m++) {
-    let label = metrics[m].Label.split('/');
-    let app_name = label[0];
-    let metric_name = label[2];
-    let resource_arn =  label[1];
-    let resource_type = resource_arn.split(':')[2];
-    
-    for (let x = 0, values = metrics[m].Values; x < values.length; x++) {
-      let result = {
-        app_name,
-        resource_type,
-        resource_arn,
-        metric_name,
-        timestamp: metrics[m].Timestamps[x],
-        metric_value: values[x],
-        threshold: getThreshold(resource_type, metric_name, values[x])
+  const response = [];
+  if(metrics) {  
+    for (let m = 0; m <= metrics.length - 1; m++) {
+      let label = metrics[m].Label.split('/');
+      let app_name = label[0];
+      let resource_name = label[1]
+      let metric_name = label[3];
+      let resource_arn =  label[2];
+      let resource_type = resource_arn.split(':')[2];
+  
+      for (let x = 0, values = metrics[m].Values; x <= values.length - 1; x++) {
+        let result = {
+          app_name,
+          resource_type,
+          resource_name,
+          resource_arn,
+          metric_name,
+          timestamp: metrics[m].Timestamps[x],
+          metric_value: values[x],
+          threshold: getThreshold(resource_type, metric_name, values[x])
+        }
+        response.push(result);
       }
-      response.push(result);
-    }
+    } 
   }
 
   return await Promise.all(response);
@@ -62,11 +72,16 @@ const transform = async (metrics) => {
 const getThreshold = (resource_type, metric_name, value) => {
   const threshold = metricThreshold[resource_type][metric_name];
   const keys = Object.keys(threshold);
-  let response = 'Normal'
-  for (let i = 0; i < keys.length; i++) {
-    if(value >= threshold[keys[i]]) {
-      response = keys[i];
+  let response = 'Normal';
+
+  if(keys.length) {
+    for (let i = 0; i < keys.length; i++) {
+      if(value >= threshold[keys[i]]) {
+        response = keys[i];
+      }
     }
+  } else {
+    response = '';
   }
   return response;
 }
